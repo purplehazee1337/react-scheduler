@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import Paper from "@mui/material/Paper";
+import React, { useEffect, useState } from "react";
+import {Paper } from "@mui/material";
 import {
   ViewState,
   EditingState,
@@ -17,53 +17,85 @@ import {
   ViewSwitcher,
   AllDayPanel,
   DateNavigator,
-  AppointmentForm
+  AppointmentForm,
 } from "@devexpress/dx-react-scheduler-material-ui";
-
-import { appointments } from "./data/appointments";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  deleteDoc,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "./config/firestore";
 import { messages } from "./data/messages";
 
+import CustomDateEditor from "./components/CustomDateEditor";
+
+
+
+const currentDate = new Date().toISOString();
+const language = messages.pl;
+
 const App = () => {
-  const currentDate = new Date().toISOString().slice(0, 10);
-  const [language, setLanguage] = useState(messages.pl);
-  const [data, setData] = useState(appointments);
+  const [appointments, setAppointments] = useState();
 
-  const commitChanges = useCallback(({ added, changed, deleted }) => {
-    setData((prevData) => {
-      let updatedData = prevData;
+  const getAppointments = async () => {
+    const querySnapshot = await getDocs(collection(db, "appointments"));
+    const data = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setAppointments(data);
+  };
 
-      if (added) {
-        const startingAddedId =
-          updatedData.length > 0
-            ? updatedData[updatedData.length - 1].id + 1
-            : 0;
-        updatedData = [...updatedData, { id: startingAddedId, ...added }];
-      }
-      if (changed) {
-        updatedData = updatedData.map((appointment) =>
-          changed[appointment.id]
-            ? { ...appointment, ...changed[appointment.id] }
-            : appointment
-        );
-      }
-      if (deleted !== undefined) {
-        updatedData = updatedData.filter(
-          (appointment) => appointment.id !== deleted
-        );
-      }
-      return updatedData;
-    });
+  useEffect(() => {
+    getAppointments();
   }, []);
 
-  const formatValue = date => {console.log(date); return date};
+  async function addAppoinment(newAppoinment) {
+    if (newAppoinment.startDate) {
+      newAppoinment.startDate = newAppoinment.startDate.toISOString();
+    }
+    if (newAppoinment.endDate) {
+      newAppoinment.endDate = newAppoinment.endDate.toISOString();
+    }
+    await addDoc(collection(db, "appointments"), { ...newAppoinment });
+  }
 
-  const DateEditorComponent = (
-    { inputFormat, locale, ...restProps },
-  ) => <AppointmentForm.DateEditor {...restProps} inputFormat={"DD/MM/YYYY hh:mm"} locale={"pl-PL"} />;
+  async function editAppoinment(selectedAppointment) {
+    const id = Object.keys(selectedAppointment)[0];
+    if (selectedAppointment[id].startDate)
+      selectedAppointment[id].startDate =
+        selectedAppointment[id].startDate.toISOString();
+    if (selectedAppointment[id].endDate)
+      selectedAppointment[id].endDate =
+        selectedAppointment[id].endDate.toISOString();
+    await updateDoc(doc(db, "appointments", id), {
+      ...selectedAppointment[id],
+    });
+  }
+
+  async function deleteAppoinment(appointmentID) {
+    await deleteDoc(doc(db, "appointments", appointmentID));
+  }
+
+  async function commitChanges({ added, changed, deleted }) {
+    if (added) {
+      await addAppoinment(added);
+    }
+    if (changed) {
+      await editAppoinment(changed);
+    }
+    if (deleted !== undefined) {
+      await deleteAppoinment(deleted);
+    }
+    getAppointments();
+  }
 
   return (
     <Paper>
-      <Scheduler data={data} height={700} locale="pl-PL">
+      <Scheduler data={appointments} height={'auto'} locale="pl">
         <ViewState
           defaultCurrentDate={currentDate}
           defaultCurrentViewName="Day"
@@ -81,21 +113,21 @@ const App = () => {
           displayName={language.weekView}
         />
         <MonthView displayName={language.monthView} />
-
         <Toolbar />
         <DateNavigator />
         <ViewSwitcher />
 
-        
-        <Appointments draggable={true}/>
-        <AppointmentTooltip showOpenButton showDeleteButton />
+        <Appointments />
+        <AppointmentTooltip showOpenButton showDeleteButton showCloseButton />
         <AppointmentForm
           messages={language.appointmentForm}
-          dateEditorComponent={DateEditorComponent}
+          dateEditorComponent={CustomDateEditor}
+          booleanEditorComponent={() => {
+            return 
+            }}
         />
-        <AllDayPanel messages={language.allDayPanel} />
-        <ConfirmationDialog messages={language.confirmationDialog} />
         
+        <ConfirmationDialog messages={language.confirmationDialog} />
       </Scheduler>
     </Paper>
   );
