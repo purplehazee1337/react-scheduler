@@ -130,6 +130,7 @@ const App = () => {
     }
     if (deleted !== undefined) {
       await deleteAppoinment(deleted);
+      handleAlertOpen("Spotkanie zostało usunięte.", "success")
     }
 
     await getAppointments();
