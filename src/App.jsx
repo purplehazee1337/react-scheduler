@@ -40,31 +40,28 @@ const App = () => {
   const [alertState, setAlertState] = useState({
     visibility: false,
     message: "",
+    severity: "",
   });
 
-  const getAppointments = async () => {
+  //Alert Func
+  const handleAlertOpen = (message, severity) => {
+    setAlertState({ visibility: true, message: message, severity: severity });
+  };
+
+  const handleAlertClose = () => {
+    setAlertState({ visibility: false, message: "", severity: "" });
+  };
+
+  //Database func
+  async function getAppointments() {
     const querySnapshot = await getDocs(collection(db, "appointments"));
     const data = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
     setAppointments(data);
-  };
+  }
 
-  useEffect(() => {
-    getAppointments();
-  }, []);
-
-  //Alert Func
-  const handleAlertOpen = (message) => {
-    setAlertState({ visibility: true, message: message });
-  };
-
-  const handleAlertClose = () => {
-    setAlertState({ visibility: false, message: "" });
-  };
-
-  //Database func
   async function addAppoinment(newAppoinment) {
     await addDoc(collection(db, "appointments"), { ...newAppoinment });
   }
@@ -80,6 +77,10 @@ const App = () => {
     await deleteDoc(doc(db, "appointments", appointmentID));
   }
 
+  useEffect(() => {
+    getAppointments();
+  }, []);
+
   //Scheduler endpoint
   async function commitChanges({ added, changed, deleted }) {
     if (added) {
@@ -89,9 +90,13 @@ const App = () => {
       added.endDate >= added.startDate &&
       added.title != "" &&
       added.title != undefined
-        ? await addAppoinment(added)
+        ? (async () => {
+            await addAppoinment(added);
+            handleAlertOpen("Spotkanie zostało dodane.", "success");
+          })()
         : handleAlertOpen(
-            "Spotkanie nie zostało dodane. Wprowadzono nie poprawne dane."
+            "Spotkanie nie zostało dodane. Wprowadzono nie poprawne dane.",
+            "error"
           );
     }
     if (changed) {
@@ -114,9 +119,13 @@ const App = () => {
       updatedAppoinment[id].endDate >= updatedAppoinment[id].startDate &&
       updatedAppoinment[id].title != undefined &&
       updatedAppoinment[id].title != ""
-        ? await editAppoinment(updatedAppoinment)
+        ? (async () => {
+            await editAppoinment(updatedAppoinment);
+            handleAlertOpen("Spotkanie zostało zmienione.", "success");
+          })()
         : handleAlertOpen(
-            "Spotkanie nie zostało zmienione. Wprowadzono nie poprawne dane."
+            "Spotkanie nie zostało zmienione. Wprowadzono nie poprawne dane.",
+            "error"
           );
     }
     if (deleted !== undefined) {
@@ -132,7 +141,7 @@ const App = () => {
         open={alertState.visibility}
         message={alertState.message}
         handleClose={handleAlertClose}
-        severity="error"
+        severity={alertState.severity}
       />
       <Paper>
         <Scheduler data={appointments} height={"auto"} locale="pl">
